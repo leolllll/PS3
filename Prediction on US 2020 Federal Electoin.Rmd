@@ -1,0 +1,141 @@
+---
+title: "Prediction on US 2020 Federal Electoin"
+author: "Boyang Li"
+date: "Nov. 2, 2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+# Loading in the cleaned survey Data
+survey_data <- read_csv("/Users/leoli 1/Desktop/PS3/survey_data.csv")
+
+# Loading in the cleaned census Data
+census_data <- read_csv("/Users/leoli 1/Desktop/PS3/census_data.csv")
+
+```
+
+# Title of your Report
+
+Prediction on US 2020 Federal Electoin
+
+## Name(s) of Author(s) 
+Boyang Li
+## Date
+Nov. 2, 2020
+
+# Model
+
+At this time of the year many people and communities are interested in the result of America election. Here we will be predicting the popular vote outcome of the 2020 American federal election by analyzing the data from Democracy Fund + UCLA Nationscape and American Community Surveys. I will utilize a post-stratification technique to do the prediction.I will describe the model specifics and the post-stratification calculation in the following sections .
+
+
+## Model Specifics
+I will be using a logistic regression model to model the proportion of voters who will vote for Donald Trump and Joe Biden. In the model, I will be using gender, age, race, education, employment state and income level to predict the probability of voting for both candidates. Here the race has been further specified into White, African American, American Indian. 
+
+$$ y = \beta_0 + \beta_1 x_{male} + \beta_2 x_{age_group} + \beta_3 x_{white} + \beta_4 x_{african_american} + \beta_5 x_{american_indian} + \\\beta_6 x_{asian}  + \beta_7 x_{degree} + \beta_8 x_{employed} + \beta_9 x_{income_level}  + \epsilon$$
+
+Where $y$ represents the proportion of voters who will vote for each candidates. $\beta_0$ represents the intercept of the model, and is the probability of voting when all factors are 0. Each $\beta$ represents the slope of each factor. So for every 1 unit of change of each factor, the probability increase by each $\beta$ correspondingly. 
+
+Here is a brief interpretation of variables. For gender, race and employment, x equals to 1 if the participant belongs to that category. For example, a male participants will have 1 for $x_{male}$, and a female participant will have 0 respectively. And a white participant will have 1 for $x_{white}$ and 0 in other race factor. On the other hand, age, education and income level are scaled 1 to 8, the higher one's age, education and income is, the higher scale they have respectively. 
+
+```{r, include=FALSE}
+
+# Creating the Model
+model_trump <- glm(vote_trump ~ male + age_group + white + african_american + 
+               american_indian + asian + degree + employed + income_level, 
+            data=survey_data, family= "binomial")
+
+model_biden <- glm(vote_biden ~ male + age_group + white + african_american + 
+               american_indian + asian + degree + employed + income_level, 
+            data=survey_data, family= "binomial")
+
+# Model Results (to Report in Results section)
+summary(model_trump)
+summary(model_biden)
+
+```
+
+## Post-Stratification 
+
+In order to estimate the proportion of voters who will vote for Donald Trump and Joe Biden, I need to perform a post-stratification analysis. Here I create cells based on various factors. Using the model described in the previous section I will estimate the probability of decision for each single participants. I will then divide the total prabability by the entire population size. 
+
+```{r, echo=FALSE}
+
+# Here I will perform the post-stratification calculation for Donald Trump
+census_data$logodds_estimate <-
+  model_trump %>%
+  predict(newdata = census_data)
+
+census_data$estimate <-
+  exp(census_data$logodds_estimate)/(1+exp(census_data$logodds_estimate))
+
+n = nrow(census_data)
+
+census_data %>%
+  mutate(trump_predict_prop = estimate) %>%
+  summarise(trump_predict = sum(trump_predict_prop)/n)
+
+```
+
+```{r, echo=FALSE}
+
+# Here I will perform the post-stratification calculation for Joe Biden
+census_data$logodds_estimate <-
+  model_biden %>%
+  predict(newdata = census_data)
+
+census_data$estimate <-
+  exp(census_data$logodds_estimate)/(1+exp(census_data$logodds_estimate))
+
+n = nrow(census_data)
+
+census_data %>%
+  mutate(biden_predict_prop = estimate) %>%
+  summarise(biden_predict = sum(biden_predict_prop)/n)
+
+```
+
+# Results
+
+Therefore, by the data I choose, the population predicted to vote for Donald Trump is 41.72% and the poulation predicted to vote for Joe Biden is 39.14%. There are still nearly 10% of people who have nor decided, yet they appear to be the crucial part of election. 
+
+# Discussion
+
+```{r, echo=FALSE}
+summary(model_trump)
+```
+
+```{r, echo=FALSE}
+summary(model_biden)
+```
+
+There are some significant coefficients when comparing two models. The charts show that male votes are more likely to vote for Trump and less like to vote for Biden. There is also a notable difference between the preference of white people and African American. White tends to vote Trump, while the probability of African American to vote Trump is much lower. Being Asian does not affect the probability much for both candidates. Its significance is low as well due to the large p value. 
+
+## Weaknesses
+
+There are still many ways to improve the result. A major one is to predict the vote by states. Vote result in each state is more important in each state due to America voting system. Each state has a certain amount of electoral college and all electoral college votes goes to the winner in the state. The one with higher electoral college votes wins. Thus, it is possible for a candidates becomes president with lower general votes, like in 2016. The general prediction is not accurate for the election. The best way is to predict the result of each state and count their electoral college respectively. 
+
+## Next Steps
+
+One way toe improve the current result is to separate the variables. Some variables are in scale but others such as gender and race are binary. Thus, the model will be more accurate if the binary variables can be taken separately in a sub-model. Continuous and binary terms can be taken into different sub-models and then adds up together. In this way, all factors can fit better in the model and their coefficients are more reasonable. 
+
+
+# References
+
+Hadley Wickham and Evan Miller (2020). haven: Import and Export 'SPSS', 'Stata' and
+  'SAS' Files. R package version 2.3.1. https://CRAN.R-project.org/package=haven
+
+Helena Robertson, Ashley Kirk and Frank Hulley-Jones (2020). "Electoral college explained: how Biden faces an uphill battle in the US election". The Guardian. https://www.theguardian.com/us-news/ng-interactive/2020/oct/30/electoral-college-explained-how-biden-faces-an-uphill-battle-in-the-us-election
+
+Steven Ruggles, Sarah Flood, Ronald Goeken, Josiah Grover, Erin Meyer, Jose Pacas and Matthew Sobek. IPUMS USA: Version 10.0 [dataset]. Minneapolis, MN: IPUMS, 2020. https://doi.org/10.18128/D010.V10.0
+
+Tausanovitch, Chris and Lynn Vavreck. 2020. Democracy Fund + UCLA Nationscape, October 10-17, 2019 (version 20200814). Retrieved from https://www.voterstudygroup.org/publication/nationscape-data-set
+
+Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source Software,
+  4(43), 1686, https://doi.org/10.21105/joss.01686
+
+
